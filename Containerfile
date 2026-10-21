@@ -9,7 +9,8 @@ RUN apt-get update && apt-get upgrade -y \
 	tar tmux unzip vim wget zip unattended-upgrades
 
 RUN curl -sL --proto '=https' --tlsv1.2 "https://nginx.org/keys/nginx_signing.key" | gpg --dearmor >"/usr/share/keyrings/nginx-archive-keyring.gpg" \
-	&& echo "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] https://nginx.org/packages/debian $(lsb_release -cs) nginx" >"/etc/apt/sources.list.d/nginx.list" \
+	&& echo "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] https://nginx.org/packages/mainline/debian $(lsb_release -cs) nginx" >"/etc/apt/sources.list.d/nginx.list" \
+	&& apt-get update \
 	&& DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends nginx logrotate \
 	&& mkdir -p /app/conf/pki \
 	&& chown root:nogroup /app \
@@ -30,14 +31,8 @@ COPY --chown=root:root /container/nginx/user/ /app/conf/nginx/
 
 COPY /container/supervisord.conf /infinite/supervisord.conf
 
-# Test stage: builds from source and runs the Go test suite.
-FROM base AS test
-
-# Unit tests run without runtime setup, so provide the nginx files it generates.
-RUN mkdir -p /app/html /app/logs/nginx \
-	&& touch /app/logs/nginx/nginx.log \
-	&& chown -R nobody:nogroup /app/html /app/logs \
-	&& openssl dhparam -dsaparam -out /etc/nginx/dhparam.pem 2048
+# Build stage: generates templ code and compiles the binary without host tooling.
+FROM base AS build
 
 COPY . .
 
@@ -46,7 +41,17 @@ ENV PATH="/usr/local/share/mise/shims:${PATH}"
 RUN mise trust \
 	&& mise install --yes \
 	&& go mod download \
-	&& go build -o os
+	&& templ generate -path src/presentation/ui \
+	&& CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o os ./os.go
+
+# Test stage: runs the Go test suite with the build stage toolchain.
+FROM build AS test
+
+# Unit tests run without runtime setup, so provide the nginx files it generates.
+RUN mkdir -p /app/html /app/logs/nginx \
+	&& touch /app/logs/nginx/nginx.log \
+	&& chown -R nobody:nogroup /app/html /app/logs \
+	&& openssl dhparam -dsaparam -out /etc/nginx/dhparam.pem 2048
 
 ENTRYPOINT ["go", "test", "-v", "./..."]
 
@@ -58,7 +63,7 @@ RUN cp /etc/apt/apt.conf.d/50unattended-upgrades /etc/apt/apt.conf.d/52unattende
   && sed -i '/codename=\${distro_codename}-security,label=Debian-Security";/a\\        "origin=nginx,archive=stable,label=nginx";' /etc/apt/apt.conf.d/52unattended-upgrades-local \
   && grep -q 'origin=nginx,archive=stable,label=nginx' /etc/apt/apt.conf.d/52unattended-upgrades-local || (echo "ErrorEditingUnattendedUpgradesConfigFile" && exit 1)
 
-COPY /bin/os /infinite/os
+COPY --from=build /infinite/os /infinite/os
 
 RUN chmod +x /infinite/os \
 	&& ln -s /infinite/os /usr/bin/os

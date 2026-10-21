@@ -115,7 +115,7 @@ It is important that this is done before using Air to create the binary; otherwi
 
 ## Marketplace and Services Catalog
 
-The marketplace and services catalog are not part of this project. You can find their repositories at [goinfinite/os-services](https://github.com/goinfinite/os-services) and [goinfinite/os-marketplace](https://github.com/goinfinite/os-marketplace). Both are managed by Infinite DevOps team directly and their items manifests are based on JSON and YAML files. Read the instructions in their respective repositories to understand how to use, extend and contribute to them.
+The marketplace and services catalog are not part of this project. You can find their repositories at [felipoantonoff/os-services](https://github.com/felipoantonoff/os-services) and [felipoantonoff/os-marketplace](https://github.com/felipoantonoff/os-marketplace). Both are managed by Infinite DevOps team directly and their items manifests are based on JSON and YAML files. Read the instructions in their respective repositories to understand how to use, extend and contribute to them.
 
 ## Zed Extensions
 
